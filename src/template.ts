@@ -1,12 +1,13 @@
 import type { SlideData } from "./parser.ts";
+import { type ThemeConfig, getDefaultTheme, themeToCSS } from "./theme.ts";
 
 const CSS = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #1a1a2e;
-  color: #eee;
+  background: var(--slide-bg);
+  color: var(--slide-text);
   overflow: hidden;
   width: 100vw;
   height: 100vh;
@@ -39,21 +40,21 @@ body {
 .slide h1 {
   font-size: clamp(2rem, 5vw, 4rem);
   margin-bottom: 0.6em;
-  color: #fff;
+  color: var(--slide-h1);
   line-height: 1.2;
 }
 
 .slide h2 {
   font-size: clamp(1.5rem, 3.5vw, 2.8rem);
   margin-bottom: 0.5em;
-  color: #e0e0ff;
+  color: var(--slide-h2);
   line-height: 1.3;
 }
 
 .slide h3 {
   font-size: clamp(1.2rem, 2.5vw, 2rem);
   margin-bottom: 0.5em;
-  color: #c0c0e0;
+  color: var(--slide-h3);
 }
 
 .slide p {
@@ -72,14 +73,14 @@ body {
 .slide li { margin-bottom: 0.3em; }
 
 .slide code {
-  background: rgba(255,255,255,0.1);
+  background: var(--slide-code-inline-bg);
   padding: 0.15em 0.4em;
   border-radius: 4px;
   font-size: 0.9em;
 }
 
 .slide pre {
-  background: #0d0d1a;
+  background: var(--slide-code-bg);
   padding: 1.2em 1.5em;
   border-radius: 8px;
   overflow-x: auto;
@@ -94,14 +95,14 @@ body {
 }
 
 .slide pre.shiki {
-  background: #0d0d1a !important;
+  background: var(--slide-code-bg) !important;
 }
 
 .slide blockquote {
-  border-left: 4px solid #6c63ff;
+  border-left: 4px solid var(--slide-accent);
   padding-left: 1em;
   margin-bottom: 1em;
-  color: #bbb;
+  color: var(--slide-blockquote-text);
   font-style: italic;
 }
 
@@ -118,19 +119,19 @@ body {
 }
 
 .slide th, .slide td {
-  border: 1px solid #444;
+  border: 1px solid var(--slide-table-border);
   padding: 0.5em 1em;
   text-align: left;
 }
 
-.slide th { background: rgba(255,255,255,0.08); }
+.slide th { background: var(--slide-table-header-bg); }
 
 .progress-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   height: 3px;
-  background: #6c63ff;
+  background: var(--slide-accent);
   transition: width 0.3s ease;
   z-index: 100;
 }
@@ -140,7 +141,7 @@ body {
   bottom: 12px;
   right: 20px;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--slide-number);
   z-index: 100;
 }
 `;
@@ -190,8 +191,55 @@ const JS = `
 const WS_RELOAD_JS = `
 (function() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  let ws;
+  let themes = [];
+  let currentThemeIndex = 0;
+
+  // Theme toast indicator
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(0,0,0,0.7);color:#fff;padding:8px 20px;border-radius:20px;' +
+    'font-size:14px;z-index:1000;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+  document.body.appendChild(toast);
+  let toastTimer;
+  function showToast(text) {
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 1500);
+  }
+
+  // Fetch theme list
+  let themeSwitchEnabled = true;
+  fetch('/api/themes').then(r => r.json()).then(data => {
+    if (data.customThemeActive) { themeSwitchEnabled = false; return; }
+    themes = data.themes;
+    currentThemeIndex = themes.indexOf(data.current);
+    if (currentThemeIndex < 0) currentThemeIndex = 0;
+  }).catch(e => console.warn('[slidemark] Failed to fetch themes:', e));
+
+  function switchTheme(direction) {
+    if (!themeSwitchEnabled || themes.length === 0) return;
+    currentThemeIndex = (currentThemeIndex + direction + themes.length) % themes.length;
+    const name = themes[currentThemeIndex];
+    showToast('Theme: ' + name);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('theme:' + name);
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 't' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      switchTheme(1);
+    } else if (e.key === 'T' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      switchTheme(-1);
+    }
+  });
+
   function connect() {
-    const ws = new WebSocket(proto + '//' + location.host + '/ws');
+    ws = new WebSocket(proto + '//' + location.host + '/ws');
     ws.onmessage = (e) => { if (e.data === 'reload') location.reload(); };
     ws.onclose = () => setTimeout(connect, 1000);
   }
@@ -202,10 +250,12 @@ const WS_RELOAD_JS = `
 export interface TemplateOptions {
   title?: string;
   devMode?: boolean;
+  theme?: ThemeConfig;
+  customCSS?: string;
 }
 
 export function buildHtml(slides: SlideData[], options: TemplateOptions = {}): string {
-  const { title = "slidemark", devMode = false } = options;
+  const { title = "slidemark", devMode = false, theme = getDefaultTheme(), customCSS } = options;
 
   const sections = slides
     .map(
@@ -220,7 +270,8 @@ export function buildHtml(slides: SlideData[], options: TemplateOptions = {}): s
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
-  <style>${CSS}</style>
+  <style>${themeToCSS(theme)}${CSS}</style>
+${customCSS ? `  <style>${customCSS}</style>` : ""}
 </head>
 <body>
   <div class="slide-container">

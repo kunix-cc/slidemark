@@ -1,13 +1,18 @@
 import { createHighlighter, type Highlighter } from "shiki";
 
 let highlighter: Highlighter | null = null;
+let loadedShikiThemes = new Set<string>();
 
-async function getHighlighter(): Promise<Highlighter> {
+async function getHighlighter(shikiTheme: string): Promise<Highlighter> {
   if (!highlighter) {
     highlighter = await createHighlighter({
-      themes: ["github-dark"],
+      themes: [shikiTheme],
       langs: [],
     });
+    loadedShikiThemes.add(shikiTheme);
+  } else if (!loadedShikiThemes.has(shikiTheme)) {
+    await highlighter.loadTheme(shikiTheme as any);
+    loadedShikiThemes.add(shikiTheme);
   }
   return highlighter;
 }
@@ -24,8 +29,8 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
-export async function highlightHtml(html: string): Promise<string> {
-  const hl = await getHighlighter();
+export async function highlightHtml(html: string, shikiTheme: string = "github-dark"): Promise<string> {
+  const hl = await getHighlighter(shikiTheme);
   const matches: { full: string; lang: string; code: string }[] = [];
 
   for (const m of html.matchAll(PRECODE_RE)) {
@@ -52,7 +57,7 @@ export async function highlightHtml(html: string): Promise<string> {
     const loaded = new Set(hl.getLoadedLanguages());
     const highlighted = hl.codeToHtml(code, {
       lang: loaded.has(lang) ? lang : "text",
-      theme: "github-dark",
+      theme: shikiTheme,
     });
     result = result.replace(full, highlighted);
   }

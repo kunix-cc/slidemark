@@ -34,6 +34,8 @@ function splitSlides(content: string): string[] {
 const md = Bun.markdown;
 
 import { highlightHtml } from "./highlighter.ts";
+import { embedImages } from "./image.ts";
+import { dirname } from "node:path";
 
 export function parseSlides(content: string): SlideData[] {
   const parts = splitSlides(content);
@@ -44,17 +46,33 @@ export function parseSlides(content: string): SlideData[] {
   }));
 }
 
-export async function parseSlidesWithHighlight(content: string): Promise<SlideData[]> {
+export async function parseSlidesWithHighlight(content: string, shikiTheme?: string): Promise<SlideData[]> {
   const slides = parseSlides(content);
   return Promise.all(
     slides.map(async (slide) => ({
       ...slide,
-      html: await highlightHtml(slide.html),
+      html: await highlightHtml(slide.html, shikiTheme),
     }))
   );
 }
 
-export async function parseSlidesFromFile(path: string): Promise<SlideData[]> {
+export interface ParseOptions {
+  embedLocalImages?: boolean;
+  shikiTheme?: string;
+}
+
+export async function parseSlidesFromFile(path: string, options: ParseOptions = {}): Promise<SlideData[]> {
+  const { embedLocalImages = true, shikiTheme } = options;
   const content = await Bun.file(path).text();
-  return parseSlidesWithHighlight(content);
+  const slides = await parseSlidesWithHighlight(content, shikiTheme);
+
+  if (!embedLocalImages) return slides;
+
+  const basePath = dirname(path);
+  return Promise.all(
+    slides.map(async (slide) => ({
+      ...slide,
+      html: await embedImages(slide.html, basePath),
+    }))
+  );
 }

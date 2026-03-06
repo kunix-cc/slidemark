@@ -41,11 +41,27 @@ describe("parseArgs", () => {
     expect(opts.help).toBe(true);
   });
 
+  test("parses --theme with name", () => {
+    const opts = parseArgs(argv("slides.md --theme light"));
+    expect(opts.theme).toBe("light");
+  });
+
+  test("parses -t shorthand", () => {
+    const opts = parseArgs(argv("slides.md -t ocean"));
+    expect(opts.theme).toBe("ocean");
+  });
+
+  test("parses --theme with css path", () => {
+    const opts = parseArgs(argv("slides.md --theme ./custom.css"));
+    expect(opts.theme).toBe("./custom.css");
+  });
+
   test("defaults", () => {
     const opts = parseArgs(argv("slides.md"));
     expect(opts.outputFile).toBeNull();
     expect(opts.serve).toBe(false);
     expect(opts.port).toBe(3000);
+    expect(opts.theme).toBeNull();
     expect(opts.help).toBe(false);
   });
 

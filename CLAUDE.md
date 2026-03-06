@@ -1,106 +1,24 @@
+このツールはマークダウン形式のテキストファイルからスライドを作成するツールです。
 
-Default to using Bun instead of Node.js.
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Use `bunx <package> <command>` instead of `npx <package> <command>`
-- Bun automatically loads .env, so don't use dotenv.
+## 機能
 
-## APIs
+以下のうちチェックが付いているものは実装済み、付いていないものは今後実装予定のものです。
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+- [x] マークダウン形式からHTML形式のスライドを作成する
+- [x] スライドをリアルタイムプレビューする
+- [x] コードブロックをシンタックスハイライトする
+- [x] スライドへの画像ファイルの埋め込みを可能とする
+- [x] スライドのカラーテーマを変更可能とする（デフォルトを5つ用意しユーザーが用意したカスタムテーマも設定可能とする）
+- [x] スライドのカラーテーマをリアルタイムプレビュー時に変更可能とする
 
-## Testing
+## 実装方針
 
-Use `bun test` to run tests.
+原則として、外部ライブラリへの依存を無くしBunの標準機能を使用して実装すること。
+ただし、実装が極端に複雑になる場合は外部ライブラリの使用も検討すること。
 
-```ts#index.test.ts
-import { test, expect } from "bun:test";
+実装着手前には project-manager にタスクの切り出しをしてもらうこと。
+実装はテストファーストで行うこと。
+実装完了後には code-reviewer にレビューしてもらうこと。
+実装上の不明点があれば必ず質問すること。
 
-test("hello world", () => {
-  expect(1).toBe(1);
-});
-```
-
-## Frontend
-
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
-
-Server:
-
-```ts#index.ts
-import index from "./index.html"
-
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
-```
-
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-// import .css files directly and it works
-import './index.css';
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.

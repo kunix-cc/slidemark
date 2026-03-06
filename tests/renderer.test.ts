@@ -45,10 +45,23 @@ describe("renderToString", () => {
     expect(html).toContain("reload");
   });
 
+  test("devMode includes theme switcher", () => {
+    const slides = parseSlides("# Test");
+    const html = renderToString(slides, { devMode: true });
+    expect(html).toContain("/api/themes");
+    expect(html).toContain("theme:");
+  });
+
   test("production mode excludes WebSocket script", () => {
     const slides = parseSlides("# Test");
     const html = renderToString(slides, { devMode: false });
     expect(html).not.toContain("WebSocket");
+  });
+
+  test("production mode excludes theme switcher", () => {
+    const slides = parseSlides("# Test");
+    const html = renderToString(slides, { devMode: false });
+    expect(html).not.toContain("/api/themes");
   });
 
   test("custom title", () => {

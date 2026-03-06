@@ -3,6 +3,7 @@ export interface CliOptions {
   outputFile: string | null;
   serve: boolean;
   port: number;
+  theme: string | null;
   help: boolean;
 }
 
@@ -10,13 +11,15 @@ const USAGE = `Usage: slidemark <input.md> [options]
 
 Options:
   -o, --output <file>   Output HTML file (default: stdout)
+  -t, --theme <name|path>  Color theme (dark, light, ocean, forest, sunset) or .css file
   --serve               Start live preview server
   --port <number>       Server port (default: 3000)
   -h, --help            Show this help message
 
 Examples:
   slidemark slides.md -o slides.html
-  slidemark slides.md --serve
+  slidemark slides.md --theme light -o slides.html
+  slidemark slides.md --theme ./custom.css --serve
   slidemark slides.md --serve --port 8080`;
 
 export function printUsage(): void {
@@ -31,6 +34,7 @@ export function parseArgs(argv: string[]): CliOptions {
     outputFile: null,
     serve: false,
     port: 3000,
+    theme: null,
     help: false,
   };
 
@@ -45,6 +49,16 @@ export function parseArgs(argv: string[]): CliOptions {
       case "--output":
         opts.outputFile = args[++i] ?? "";
         break;
+      case "-t":
+      case "--theme": {
+        const val = args[++i];
+        if (!val) {
+          console.error("Error: --theme requires a value.");
+          process.exit(1);
+        }
+        opts.theme = val;
+        break;
+      }
       case "--serve":
         opts.serve = true;
         break;
